@@ -7,9 +7,6 @@ knows the mess and confusion it creates in a program.
 That's what inspired me to make this API.
 MCUI is a flexible and easy to learn framework designed with the express purpsose of balancing adaptability to your UI needs and ease of use to create easy-on-the-eyes programs.
 
-
-
-
 ## Documentation
 
 There are 5 main classes that are used in the MCUI framework. Instance, Device, Frame, Screen, and Visual Instances.
