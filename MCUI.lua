@@ -1,4 +1,4 @@
--- MCUI vb0.1
+-- MCUI vb0.1.1
 
 -- Classes
 
@@ -7,10 +7,36 @@
 --------------
 
 local Device = {
-    ["peripheral"] = "",
+    ["peripheral"] = term,
     ["framerate"] = 20
 }
 Device.__index = Device
+
+local faces = {
+    "left",
+    "right",
+    "top",
+    "bottom",
+    "front",
+    "back"
+}
+
+function Device:wrap(face)
+    if (peripheral.isPresent(face)) then
+        self.peripheral = peripheral.wrap(face)
+    end
+end
+
+function Device:find(periphType)
+    for _, face in ipairs(faces) do
+        if peripheral.isPresent(face) and peripheral.getType(face) == periphType then
+            self.peripheral = peripheral.wrap(face)
+            return
+        end
+    end
+
+    error("Peripheral of type '" .. periphType .. "' not found")
+end
 
 ----------------
 --- INSTANCE ---
@@ -80,4 +106,3 @@ function Instance:setParent(parent)
 end
 
 local newDevice = Instance.new("device", "newDevice")
-local testDevice = Instance.new("device", "testDevice")
