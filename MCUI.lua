@@ -1,32 +1,39 @@
 -- MCUI vb0.1.1
 
--- Classes
+-- MINOR FUNCTIONS
+
+function table.findIndx(f, l) -- find element v of l satisfying f(v)
+    for i, v in ipairs(l) do
+        if f(v) then
+            return i
+        end
+    end
+    return nil
+end
+
+-- CLASSES
 
 ----------------
 --- INSTANCE ---
 ----------------
 
-local instanceTypes = {}
-
 -- Although not shown here, this class 4 properties listed in the README
 local Instance = {}
 Instance.__index = Instance
 
-for _, inst in pairs(instanceTypes) do
-    setmetatable(inst, Instance)
-end
-
-function isInstance(obj)
-    if type(obj) ~= "table" then return false end
-    if not obj.className or not instanceTypes[obj.className] then return false end
-
-    return true
-end
+local instanceTypes = {}
 
 local function newClass(obj)
     obj = obj or {}
     setmetatable(obj, Instance)
     return obj
+end
+
+local function isInstance(obj)
+    if type(obj) ~= "table" then return false end
+    if not obj.className or not instanceTypes[obj.className] then return false end
+
+    return true
 end
 
 function Instance.new(instanceType, name, parent)
@@ -36,11 +43,8 @@ function Instance.new(instanceType, name, parent)
     -- Check if the parent is valid
     if parent and not isInstance(parent) then error("Invalid parent argument") end
 
-    -- Check for a valid name
-    if (not name) then error("Name is required when creating a new instance") end
-
     -- Check to make sure the name is a string
-    if (type(name) ~= "string") then error("Name must be a string") end
+    if name and (type(name) ~= "string") then error("Name must be a string") end
 
     local newInstance = {};
     local selectedType = instanceTypes[instanceType]
@@ -50,13 +54,27 @@ function Instance.new(instanceType, name, parent)
     -- Initialize a new table of its own to store the children because that isn't included in the properties.
     newInstance.children = {};
 
+    -- This metamethod allows for non-unique name identifiers AND retrieving children with the dot operator
+    setmetatable(newInstance.children, {
+        __index =   
+            function ( table, key )
+                for _, item in ipairs(table) do
+                    if (item.name == key) then
+                        return item
+                    end
+                end
+
+                return nil
+            end
+    })
+
     newInstance.className = instanceType
 
     newInstance.name = name
 
     if (parent) then
         newInstance.parent = parent
-        parent.children[name] = newInstance
+        table.insert(parent.children, newInstance)
     end
 
     return newInstance;
@@ -66,10 +84,11 @@ function Instance:setParent(parent)
     if not isInstance(parent) then error("Cannot set parent to a non-instance") end
 
     if (self.parent) then
-        self.parent.children[self.name] = nil;
+        local siblings = self.parent.children
+        table.remove(siblings, table.findIndx(function (v) return v == self end, siblings))
     end
 
-    parent[self.name] = self;
+    table.insert(parent.children, self)
     self.parent = parent;
 end
 
@@ -146,6 +165,6 @@ instanceTypes = {
     ["textlabel"] = TextLabel
 }
 
-local newDevice = Instance.new("device", "newDevice")
+local parent1 = Instance.new("device", "parent1")
+local parent2 = Instance.new("device", "parent2")
 local newLabel = Instance.new("textlabel", "newLabel")
-newLabel:setParent(newDevice)
