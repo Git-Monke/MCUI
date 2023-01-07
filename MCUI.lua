@@ -21,6 +21,31 @@ function printDictKeys(dict)
     end
 end
 
+function processUnitString(str)
+    local number = str:match("%d+")
+    local unit = str:match("%%")
+
+    if number then
+        number = tonumber(number)
+    end
+    if not unit then
+        unit = "px"
+    end
+
+    return number, unit
+end
+
+function newUnit(value, unit)
+    return {
+        ["value"] = value;
+        ["unit"] = unit;
+    }
+end
+
+function round(value)
+    return math.floor(value + 0.5)
+end
+
 -- CLASSES
 ----------------
 --- INSTANCE ---
@@ -86,6 +111,13 @@ function Instance.new(instanceType, name, parent)
     
     newInstance.name = name
     
+    newInstance.units = {
+        ["x"] = newUnit(0, "px"),
+        ["y"] = newUnit(0, "px"),
+        ["width"] = newUnit(0, "px"),
+        ["height"] = newUnit(0, "px")
+    }
+
     if (parent) then
         newInstance.parent = parent
         table.insert(parent.children, newInstance)
@@ -119,6 +151,34 @@ function Instance:contains(x, y)
     return true
 end
 
+function Instance:processUnits()
+    local unitRelatives = {
+        ["x"] = "width",
+        ["y"] = "height",
+        ["width"] = "width",
+        ["height"] = "height"
+    }
+
+    -- Find any new units that have been changed and update the instances unit data, then recalculate all the values based on the data
+    for unit, relative in pairs(unitRelatives) do
+        if (type(self[unit]) == "string") then
+            local value, new = processUnitString(self[unit]);
+            
+            self.units[unit] = newUnit(value, new)
+        end
+        
+        local unitData = self.units[unit];
+        local value = unitData.value;
+        local currUnit = unitData.unit;
+
+        if (currUnit == "%") then
+            self[unit] = round(self.parent[relative] * (value / 100));
+        else
+            self[unit] = value;
+        end
+    end
+end
+
 function Instance:findDevice()
     local current = self.parent
     local periph = nil;
@@ -139,20 +199,27 @@ end
 local Frame = newClass({
     ["backgroundColor"] = colors.white,
     ["visible"] = true,
-    ["units"] = {}
+    ["transparent"] = false
 })
 Frame.__index = Frame
 
 function Frame:render()
     local parent = self.parent
+
+    self:processUnits()
+
+    if (self.transparent) then
+        self:renderChildren();
+        return
+    end
     
-    local maxX = parent.x + parent.width - 1
-    local maxY = parent.y + parent.height - 1
+    local maxX = parent.x + parent.width
+    local maxY = parent.y + parent.height
     
-    local x = parent.x + self.x
+    local x = parent.x + self.x + 1
     local dx = math.min(x + self.width - 1, maxX)
     
-    local y = parent.y + self.y
+    local y = parent.y + self.y + 1
     local dy = math.min(y + self.height - 1, maxY)
     
     local periph = self:findDevice();
@@ -165,6 +232,10 @@ function Frame:render()
         end
     end
     
+    self:renderChildren();
+end
+
+function Frame:renderChildren()
     if (#self.children > 0) then
         for _, child in ipairs(self.children) do
             child:render()
@@ -181,8 +252,7 @@ local VisualInstance = newClass({
     ["text"] = "text",
     ["visible"] = true,
     ["alignText"] = "center",
-    ["justifyText"] = "center",
-    ["units"] = {}
+    ["justifyText"] = "center"
 })
 VisualInstance.__index = VisualInstance
 
@@ -203,7 +273,9 @@ TextLabel.__index = TextLabel
 --------------
 local Device = newClass({
     ["peripheral"] = term,
-    ["framerate"] = 20
+    ["framerate"] = 20,
+    ["width"] = 51,
+    ["height"] = 19
 })
 Device.__index = Device
 
@@ -253,5 +325,25 @@ instanceTypes = {
     ["textlabel"] = TextLabel
 }
 
+local device = Instance.new("device", "testDevice");
+
+local testFrame = Instance.new("frame", "testFrame");
+testFrame.width = "50%";
+testFrame.height = "50%";
+testFrame.x = "50%";
+testFrame.transparent = false;
+testFrame.backgroundColor = colors.red;
+
+local two = Instance.new("frame");
+two.width = "50%";
+two.height = "50%";
+two.x = "50%"
+
+device:addChild(testFrame)
+
+testFrame:addChild(two)
+
 device.peripheral.setBackgroundColor(colors.black)
 device.peripheral.clear()
+
+testFrame:render()
