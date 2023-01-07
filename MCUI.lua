@@ -11,6 +11,12 @@ function table.findIndx(f, l) -- find element v of l satisfying f(v)
     return nil
 end
 
+function printChildNames(instance)
+    for _, child in ipairs(instance.children) do
+        print(child.name)
+    end
+end
+
 -- CLASSES
 
 ----------------
@@ -80,16 +86,17 @@ function Instance.new(instanceType, name, parent)
     return newInstance;
 end
 
-function Instance:setParent(parent)
-    if not isInstance(parent) then error("Cannot set parent to a non-instance") end
+function Instance:addChild(instance)
+    if not isInstance(instance) then error("Cannot add non-instance child to " .. self.name) end
 
-    if (self.parent) then
-        local siblings = self.parent.children
-        table.remove(siblings, table.findIndx(function (v) return v == self end, siblings))
+    instance.parent = self
+    table.insert(self.children, instance)
+end
+
+function Instance:addChildren(instances)
+    for _,instance in ipairs(instances) do
+        self:addChild(instance)
     end
-
-    table.insert(parent.children, self)
-    self.parent = parent;
 end
 
 -----------------------
@@ -166,5 +173,13 @@ instanceTypes = {
 }
 
 local parent1 = Instance.new("device", "parent1")
-local parent2 = Instance.new("device", "parent2")
-local newLabel = Instance.new("textlabel", "newLabel")
+
+local newLabel = Instance.new("textlabel", "testLabel")
+local newLabel2 = Instance.new("textlabel", "newLabel")
+
+parent1:addChildren({
+    newLabel,
+    newLabel2
+})
+
+print(parent1.children.newLabel.name)
