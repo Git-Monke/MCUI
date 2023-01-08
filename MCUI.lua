@@ -272,6 +272,9 @@ end
 
 function Frame:orderChildren()
     if (self.display == "grid") then
+        local cY = self.y;
+        local rowHeight = 1;
+
         local width = self.width;
         local height = self.height;
 
@@ -296,24 +299,37 @@ function Frame:orderChildren()
 
         -- Keep looping until every child has been accounted for
         repeat
+            currentColumn = {};
+            rowHeight = 2;
+            count = 0;
+
             -- Loop until a full column has been used
             repeat
                 local child = children[i];
-    
-                table.insert(currentColumn, child)
+
+                -- Means the end of the list has been reached
+                if (child == nil) then break end
+
                 if (child.cw) then
+                    if (count + child.cw > columnUnits) then break end
+
                     count = count + child.cw
                 end
 
                 i = i + 1;
-            until count == rowUnits or i > #children
+                table.insert(currentColumn, child)
 
+                if (child.height) then
+                    rowHeight = math.max(rowHeight, child.height)
+                end
+            until i > #children
+            
             j = j + i;
-    
+
             -- remaining width;
             -- current x
-            local rWidth = width;
-            local cX = self.x
+            local rWidth = self.width;
+            local cX = self.x;
             
             -- First, get all of the fixed width items and subtract their sizes from the total width
             table.forEach(currentColumn, function(child)
@@ -325,17 +341,26 @@ function Frame:orderChildren()
             -- Use the remaining width to calculate the sizes for every child in the column
             -- Then give the children those values
             table.forEach(currentColumn, function(child, i)
-                
                 if (child.cw) then
                     child.width = round(rWidth * (child.cw / columnUnits))
-                    child.units.x = newUnit(cX, "px")
-                    child.units.width = newUnit(child.width, "px")
+                    -- child.units.x = newUnit(cX, "px")
+                    -- child.units.width = newUnit(child.width, "px")
+                end
+                
+                child.y = cY
+                child.units.y = newUnit(cY, "px")
+                
+                if (child.height < 1) then
+                    child.height = rowHeight
+                    child.units.height = newUnit(child.height, "px")
                 end
                 
                 child.x = cX
                 
                 cX = cX + child.width
             end)
+
+            cY = cY + rowHeight
         until j > #children
     end
 end
@@ -434,34 +459,46 @@ testFrame.height = "100%";
 testFrame.transparent = false;
 testFrame.backgroundColor = colors.gray;
 testFrame.display = "grid";
+testFrame.width = "100%";
 
 local two = Instance.new("frame", "two", testFrame);
 two.width = "5px";
-two.height = "100%";
 two.backgroundColor = colors.white
 
 local three = Instance.new("frame", "three", testFrame);
 three.backgroundColor = colors.green
-three.height = "100%"
 
 local four = Instance.new("frame", "four", testFrame)
 four.backgroundColor = colors.red;
-four.height = "100%";
+four.height = "70%";
+four.transparent = false
 
--- two.display = "grid";
--- two.columns = 1;
+two.display = "grid";
+two.columns = 3;
 
--- local five = Instance.new("frame", "five", two);
--- five.width = "5px";
--- five.height = "100%";
--- five.backgroundColor = colors.pink;
--- five.column = 2;
+local five = Instance.new("frame", "five", two);
+five.width = "5px";
+five.height = "100%";
+five.backgroundColor = colors.pink;
+five.column = 2;
+five.cw = 2;
 
--- local six = Instance.new("frame", "six", two);
--- six.cw = 1;
--- six.height = "100%";
--- six.backgroundColor = colors.purple;
--- six.column = 1;
+local six = Instance.new("frame", "six", two);
+six.cw = 1;
+six.height = "100%";
+six.backgroundColor = colors.purple;
+six.column = 1;
+
+local eight = Instance.new("frame", "eight", testFrame);
+eight.width = "10px";
+eight.backgroundColor = colors.lime
+eight.column = 5;
+
+local seven = Instance.new("frame", "seven", testFrame);
+seven.cw = 3;
+seven.backgroundColor = colors.brown
+seven.column = 4;
+seven.height = "100%"
 
 testFrame.columns = 3
 
