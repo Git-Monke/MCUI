@@ -9,6 +9,18 @@ function table.findIndx(f, l)-- find element v of l satisfying f(v)
     return nil
 end
 
+function table.forEach(l, f)
+    for i, v in ipairs(l) do
+        f(v, i);
+    end
+end
+
+function table.forKey(d, f)
+    for k, v in pairs(d) do
+        f(v, k);
+    end
+end
+
 function printChildNames(instance)
     for _, child in ipairs(instance.children) do
         print(child.name)
@@ -160,7 +172,7 @@ function Instance:processUnits()
     }
 
     -- Find any new units that have been changed and update the instances unit data, then recalculate all the values based on the data
-    for unit, relative in pairs(unitRelatives) do
+    table.forKey(unitRelatives, function(relative, unit) 
         if (type(self[unit]) == "string") then
             local value, new = processUnitString(self[unit]);
             
@@ -175,6 +187,12 @@ function Instance:processUnits()
             self[unit] = round(self.parent[relative] * (value / 100));
         else
             self[unit] = value;
+        end
+    end)
+
+    if (#self.children > 0) then
+        for _,child in ipairs(self.children) do
+            child:processUnits();
         end
     end
 end
@@ -193,20 +211,34 @@ function Instance:findDevice()
     return periph
 end
 
+function Instance:renderChildren()
+    if (#self.children > 0) then
+        for _, child in ipairs(self.children) do
+            child:render()
+        end
+    end
+end
+
 -------------
 --- FRAME ---
 -------------
+
+-- 3 display types. normal, grid, and flex
+
+-- grid uses columns and rows
+
 local Frame = newClass({
     ["backgroundColor"] = colors.white,
     ["visible"] = true,
-    ["transparent"] = false
+    ["transparent"] = false,
+    ["display"] = "normal"
 })
 Frame.__index = Frame
 
 function Frame:render()
     local parent = self.parent
 
-    self:processUnits()
+    self:orderChildren()
 
     if (self.transparent) then
         self:renderChildren();
@@ -235,11 +267,73 @@ function Frame:render()
     self:renderChildren();
 end
 
-function Frame:renderChildren()
-    if (#self.children > 0) then
-        for _, child in ipairs(self.children) do
-            child:render()
-        end
+function Frame:orderChildren()
+    if (self.display == "grid") then
+        local width = self.width;
+        local height = self.height;
+
+        local columnUnits = self.columns or 12;
+        local rowUnits = self.rows or 12;
+
+        local children = self.children;
+
+        local count = 0;
+        local currentColumn = {}
+
+        table.sort(children, function(a, b)
+            if (not a.column and b.column) then return false end
+            if (not b.column and a.column) then return true end
+            if (not a.column and not b.column) then return false end
+
+            return a.column < b.column
+        end)
+        
+        local j = 1
+        local i = 1;
+
+        -- Keep looping until every child has been accounted for
+        repeat
+            -- Loop until a full column has been used
+            repeat
+                local child = children[i];
+    
+                table.insert(currentColumn, child)
+                if (child.cw) then
+                    count = count + child.cw
+                end
+
+                i = i + 1;
+            until count == rowUnits or i > #children
+
+            j = j + i;
+    
+            -- remaining width;
+            -- current x
+            local rWidth = width;
+            local cX = self.x
+            
+            -- First, get all of the fixed width items and subtract their sizes from the total width
+            table.forEach(currentColumn, function(child)
+                if (not child.cw) then
+                    rWidth = rWidth - child.width;
+                end
+            end)
+    
+            -- Use the remaining width to calculate the sizes for every child in the column
+            -- Then give the children those values
+            table.forEach(currentColumn, function(child, i)
+                
+                if (child.cw) then
+                    child.width = round(rWidth * (child.cw / columnUnits))
+                    child.units.x = newUnit(cX, "px")
+                    child.units.width = newUnit(child.width, "px")
+                end
+                
+                child.x = cX
+                
+                cX = cX + child.width
+            end)
+        until j > #children
     end
 end
 
@@ -319,6 +413,14 @@ function Device:find(periphType)
     error("Peripheral of type '" .. periphType .. "' not found")
 end
 
+function Device:rerender()
+    for _,child in ipairs(self.children) do
+        child:processUnits();
+    end
+
+    self:renderChildren();
+end
+
 instanceTypes = {
     ["device"] = Device,
     ["frame"] = Frame,
@@ -327,23 +429,43 @@ instanceTypes = {
 
 local device = Instance.new("device", "testDevice");
 
-local testFrame = Instance.new("frame", "testFrame");
-testFrame.width = "50%";
-testFrame.height = "50%";
-testFrame.x = "50%";
+local testFrame = Instance.new("frame", "testFrame", device);
+testFrame.height = "8px";
 testFrame.transparent = false;
-testFrame.backgroundColor = colors.red;
+testFrame.backgroundColor = colors.gray;
+testFrame.display = "grid";
 
-local two = Instance.new("frame");
-two.width = "50%";
-two.height = "50%";
-two.x = "50%"
+local two = Instance.new("frame", "two", testFrame);
+two.width = "5px";
+two.height = "3px";
+two.backgroundColor = colors.white
 
-device:addChild(testFrame)
+local three = Instance.new("frame", "three", testFrame);
+three.backgroundColor = colors.green
+three.height = "3px"
 
-testFrame:addChild(two)
+local four = Instance.new("frame", "four", testFrame)
+four.backgroundColor = colors.red;
+four.height = "3px";
 
-device.peripheral.setBackgroundColor(colors.black)
-device.peripheral.clear()
+testFrame.columns = 3
 
-testFrame:render()
+two.column = 0;
+two.cw = 1;
+
+three.column = 1;
+three.cw = 1;
+
+four.column = 2;
+four.cw = 1;
+
+local i = 0;
+while true do
+    os.sleep(0.05)
+    i = i + 0.1;
+    testFrame.width = (math.sin(i) * 100) .. "%";
+    
+    device.peripheral.setBackgroundColor(colors.black)
+    device.peripheral.clear()       
+    device:rerender()
+end
