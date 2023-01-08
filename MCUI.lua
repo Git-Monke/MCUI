@@ -189,7 +189,9 @@ function Instance:processUnits()
             self[unit] = value;
         end
     end)
+end
 
+function Instance:processChildrenUnits()
     if (#self.children > 0) then
         for _,child in ipairs(self.children) do
             child:processUnits();
@@ -238,7 +240,8 @@ Frame.__index = Frame
 function Frame:render()
     local parent = self.parent
 
-    self:orderChildren()
+    self:processChildrenUnits();
+    self:orderChildren();
 
     if (self.transparent) then
         self:renderChildren();
@@ -414,10 +417,7 @@ function Device:find(periphType)
 end
 
 function Device:rerender()
-    for _,child in ipairs(self.children) do
-        child:processUnits();
-    end
-
+    self:processChildrenUnits();
     self:renderChildren();
 end
 
@@ -430,23 +430,38 @@ instanceTypes = {
 local device = Instance.new("device", "testDevice");
 
 local testFrame = Instance.new("frame", "testFrame", device);
-testFrame.height = "8px";
+testFrame.height = "100%";
 testFrame.transparent = false;
 testFrame.backgroundColor = colors.gray;
 testFrame.display = "grid";
 
 local two = Instance.new("frame", "two", testFrame);
 two.width = "5px";
-two.height = "3px";
+two.height = "100%";
 two.backgroundColor = colors.white
 
 local three = Instance.new("frame", "three", testFrame);
 three.backgroundColor = colors.green
-three.height = "3px"
+three.height = "100%"
 
 local four = Instance.new("frame", "four", testFrame)
 four.backgroundColor = colors.red;
-four.height = "3px";
+four.height = "100%";
+
+-- two.display = "grid";
+-- two.columns = 1;
+
+-- local five = Instance.new("frame", "five", two);
+-- five.width = "5px";
+-- five.height = "100%";
+-- five.backgroundColor = colors.pink;
+-- five.column = 2;
+
+-- local six = Instance.new("frame", "six", two);
+-- six.cw = 1;
+-- six.height = "100%";
+-- six.backgroundColor = colors.purple;
+-- six.column = 1;
 
 testFrame.columns = 3
 
@@ -463,7 +478,7 @@ local i = 0;
 while true do
     os.sleep(0.05)
     i = i + 0.1;
-    testFrame.width = (math.sin(i) * 100) .. "%";
+    testFrame.width = (math.sin(i) * 100) + 1 .. "%";
     
     device.peripheral.setBackgroundColor(colors.black)
     device.peripheral.clear()       
