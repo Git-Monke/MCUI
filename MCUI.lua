@@ -21,6 +21,12 @@ function table.forKey(d, f)
     end
 end
 
+function math.clamp(min, max, value)
+    if (value < min) then return min end
+    if (value > max) then return max end
+    return value;
+end
+
 function printChildNames(instance)
     for _, child in ipairs(instance.children) do
         print(child.name)
@@ -188,10 +194,14 @@ function Instance:processUnits()
         else
             self[unit] = value;
         end
+
+        if (unit == "x" or unit == "y") then
+            self[unit] = self[unit] + self.parent[unit]
+        end
     end)
 end
 
-function Instance:processChildrenUnits()
+function Instance:processChildUnits()
     if (#self.children > 0) then
         for _,child in ipairs(self.children) do
             child:processUnits();
@@ -240,7 +250,7 @@ Frame.__index = Frame
 function Frame:render()
     local parent = self.parent
 
-    self:processChildrenUnits();
+    self:processChildUnits();
     self:orderChildren();
 
     if (self.transparent) then
@@ -251,29 +261,34 @@ function Frame:render()
     local maxX = parent.x + parent.width
     local maxY = parent.y + parent.height
     
-    local x = parent.x + self.x + 1
-    local dx = math.min(x + self.width - 1, maxX)
+    local x = self.x + 1
+    local dx = x + self.width - 1
     
-    local y = parent.y + self.y + 1
-    local dy = math.min(y + self.height - 1, maxY)
+    local y = self.y + 1
+    local dy = y + self.height - 1
+
+    if (parent.overflow == "hidden") then
+        x = math.clamp(parent.x + 1, maxX, x);
+        dx = math.clamp(parent.x, maxX, dx);
+        y = math.clamp(parent.y, maxY, y);
+        dy = math.clamp(parent.y, maxY, dy);
+    end
     
     local periph = self:findDevice();
     periph.setBackgroundColor(self.backgroundColor);
-    
-    for i = x, dx do
-        for j = y, dy do
-            periph.setCursorPos(i, j)
-            periph.write(" ")
-        end
-    end
+
+    paintutils.drawFilledBox(x, y, dx, dy, self.backgroundColor)
     
     self:renderChildren();
 end
 
 function Frame:orderChildren()
     if (self.display == "grid") then
-        local cY = self.y;
+        local cY = 0;
         local rowHeight = 1;
+
+        local columnGap = self.columnGap or 0;
+        local rowGap = self.rowGap or 0;
 
         local width = self.width;
         local height = self.height;
@@ -295,7 +310,7 @@ function Frame:orderChildren()
         end)
         
         local j = 1
-        local i = 1;
+        local i = 0;
 
         -- Keep looping until every child has been accounted for
         repeat
@@ -305,6 +320,8 @@ function Frame:orderChildren()
 
             -- Loop until a full column has been used
             repeat
+                i = i + 1;
+                
                 local child = children[i];
 
                 -- Means the end of the list has been reached
@@ -315,21 +332,20 @@ function Frame:orderChildren()
 
                     count = count + child.cw
                 end
-
-                i = i + 1;
+                
                 table.insert(currentColumn, child)
 
                 if (child.height) then
                     rowHeight = math.max(rowHeight, child.height)
                 end
-            until i > #children
+            until i > #children or count == columnUnits
             
             j = j + i;
 
             -- remaining width;
             -- current x
-            local rWidth = self.width;
-            local cX = self.x;
+            local rWidth = self.width - (columnGap * (#currentColumn + 1));
+            local cX = self.x + columnGap + 1;
             
             -- First, get all of the fixed width items and subtract their sizes from the total width
             table.forEach(currentColumn, function(child)
@@ -342,9 +358,7 @@ function Frame:orderChildren()
             -- Then give the children those values
             table.forEach(currentColumn, function(child, i)
                 if (child.cw) then
-                    child.width = round(rWidth * (child.cw / columnUnits))
-                    -- child.units.x = newUnit(cX, "px")
-                    -- child.units.width = newUnit(child.width, "px")
+                    child.width = math.floor(rWidth * (child.cw / columnUnits))  
                 end
                 
                 child.y = cY
@@ -355,9 +369,9 @@ function Frame:orderChildren()
                     child.units.height = newUnit(child.height, "px")
                 end
                 
-                child.x = cX
+                child.x = cX - 1
                 
-                cX = cX + child.width
+                cX = cX + child.width + columnGap
             end)
 
             cY = cY + rowHeight
@@ -442,8 +456,14 @@ function Device:find(periphType)
 end
 
 function Device:rerender()
-    self:processChildrenUnits();
+    if (self.peripheral ~= term) then
+        term.redirect(self.peripheral)
+    end
+
+    self:processChildUnits();
     self:renderChildren();
+
+    term.native()
 end
 
 instanceTypes = {
@@ -470,18 +490,18 @@ three.backgroundColor = colors.green
 
 local four = Instance.new("frame", "four", testFrame)
 four.backgroundColor = colors.red;
-four.height = "70%";
+four.height = "30%";
 four.transparent = false
 
 two.display = "grid";
-two.columns = 3;
+two.columns = 4;
 
 local five = Instance.new("frame", "five", two);
 five.width = "5px";
 five.height = "100%";
 five.backgroundColor = colors.pink;
 five.column = 2;
-five.cw = 2;
+five.cw = 3;
 
 local six = Instance.new("frame", "six", two);
 six.cw = 1;
@@ -495,15 +515,19 @@ eight.backgroundColor = colors.lime
 eight.column = 5;
 
 local seven = Instance.new("frame", "seven", testFrame);
-seven.cw = 3;
+seven.cw = 4;
 seven.backgroundColor = colors.brown
-seven.column = 4;
-seven.height = "100%"
+seven.column = 6;
+seven.height = "30%"
 
-testFrame.columns = 3
+testFrame.columns = 4
+testFrame.width = "90%"
+testFrame.x = "0px";
+testFrame.overflow = "hidden";
+testFrame.columnGap = 1;
 
 two.column = 0;
-two.cw = 1;
+two.cw = 2;
 
 three.column = 1;
 three.cw = 1;
@@ -511,10 +535,14 @@ three.cw = 1;
 four.column = 2;
 four.cw = 1;
 
+device.peripheral.setBackgroundColor(colors.black)
+device.peripheral.clear()   
+device:rerender()
+
 local i = 0;
 while true do
     os.sleep(0.05)
-    i = i + 0.1;
+    i = i + 0.05;
     testFrame.width = (math.sin(i) * 100) + 1 .. "%";
     
     device.peripheral.setBackgroundColor(colors.black)
