@@ -1,6 +1,6 @@
 -- MCUI vb0.1.1
 -- MINOR FUNCTIONS
-function table.findIndx(f, l) -- find the first elemnt that satisfies f(v) and return its index
+function table.findIndx(f, l)-- find the first elemnt that satisfies f(v) and return its index
     for i, v in ipairs(l) do
         if f(v) then
             return i
@@ -9,7 +9,7 @@ function table.findIndx(f, l) -- find the first elemnt that satisfies f(v) and r
     return nil
 end
 
-function table.find(l, f) -- find the first element that satisfies f(v) and return it, and then its index
+function table.find(l, f)-- find the first element that satisfies f(v) and return it, and then its index
     for i, v in ipairs(l) do
         if f(v) then
             return v, i;
@@ -51,14 +51,14 @@ end
 function processUnitString(str)
     local number = str:match("%d+")
     local unit = str:match("%%")
-
+    
     if number then
         number = tonumber(number)
     end
     if not unit then
         unit = "px"
     end
-
+    
     return number, unit
 end
 
@@ -144,7 +144,7 @@ function Instance.new(instanceType, name, parent)
         ["width"] = newUnit(0, "px"),
         ["height"] = newUnit(0, "px")
     }
-
+    
     if (parent) then
         newInstance.parent = parent
         table.insert(parent.children, newInstance)
@@ -185,9 +185,9 @@ function Instance:processUnits()
         ["width"] = "width",
         ["height"] = "height"
     }
-
+    
     -- Find any new units that have been changed and update the instances unit data, then recalculate all the values based on the data
-    table.forKey(unitRelatives, function(relative, unit) 
+    table.forKey(unitRelatives, function(relative, unit)
         if (type(self[unit]) == "string") then
             local value, new = processUnitString(self[unit]);
             
@@ -197,13 +197,13 @@ function Instance:processUnits()
         local unitData = self.units[unit];
         local value = unitData.value;
         local currUnit = unitData.unit;
-
+        
         if (currUnit == "%") then
             self[unit] = round(self.parent[relative] * (value / 100));
         else
             self[unit] = value;
         end
-
+        
         if (unit == "x" or unit == "y") then
             self[unit] = self[unit] + self.parent[unit]
         end
@@ -211,11 +211,9 @@ function Instance:processUnits()
 end
 
 function Instance:processChildUnits()
-    if (#self.children > 0) then
-        for _,child in ipairs(self.children) do
-            child:processUnits();
-        end
-    end
+    table.forEach(self.children, function(child)
+        child:processUnits();
+    end)
 end
 
 function Instance:findDevice()
@@ -228,7 +226,7 @@ function Instance:findDevice()
         current = current.parent
         periph = current.peripheral
     until current.peripheral or current.parent == nil
-
+    
     return periph
 end
 
@@ -243,11 +241,8 @@ end
 -------------
 --- FRAME ---
 -------------
-
--- 3 display types. normal, grid, and flex
-
--- grid uses columns and rows
-
+-- 3 display types. Normal, grid, and flex
+-- Grid uses columns and rows
 local Frame = newClass({
     ["backgroundColor"] = colors.white,
     ["visible"] = true,
@@ -258,10 +253,10 @@ Frame.__index = Frame
 
 function Frame:render()
     local parent = self.parent
-
+    
     self:processChildUnits();
     self:orderChildren();
-
+    
     if (self.transparent) then
         self:renderChildren();
         return
@@ -275,17 +270,18 @@ function Frame:render()
     
     local y = self.y + 1
     local dy = y + self.height - 1
-
+    
     if (parent.overflow == "hidden") then
         x = math.clamp(parent.x + 1, maxX, x);
         dx = math.clamp(parent.x, maxX, dx);
+
         y = math.clamp(parent.y, maxY, y);
         dy = math.clamp(parent.y, maxY, dy);
     end
     
     local periph = self:findDevice();
     periph.setBackgroundColor(self.backgroundColor);
-
+    
     paintutils.drawFilledBox(x, y, dx, dy, self.backgroundColor)
     
     self:renderChildren();
@@ -293,75 +289,76 @@ end
 
 function Frame:orderChildren()
     if (self.display == "grid") then
-        local cY = 0;
+        -- The default height of a row if none of its items have a set height.
         local rowHeight = 1;
 
+        -- Current Y. Keeps track of the current rows starting Y.
+        local cY = 0;
+        
         local columnGap = self.columnGap or 0;
         local rowGap = self.rowGap or 0;
-
+        
         local width = self.width;
         local height = self.height;
-
+        
         local columnUnits = self.columns or 12;
         local rowUnits = self.rows or 12;
-
+        
         local children = self.children;
-
+        
         local count = 0;
         local currentColumn = {}
-
+        
         table.sort(children, function(a, b)
             if (not a.column and b.column) then return false end
             if (not b.column and a.column) then return true end
             if (not a.column and not b.column) then return false end
-
+            
             return a.column < b.column
         end)
         
         local j = 1
         local i = 0;
-
+        
         -- Keep looping until every child has been accounted for
         repeat
             currentColumn = {};
             rowHeight = 2;
             count = 0;
-
-            -- Loop until a full column has been used
+            
+            -- Loop until a full column has been used (based on cw)
             repeat
                 i = i + 1;
                 
                 local child = children[i];
-
+                
                 -- Means the end of the list has been reached
                 if (child == nil) then break end
-
+                
                 if (child.cw) then
-                    if (count + child.cw > columnUnits) then 
+                    if (count + child.cw > columnUnits) then
                         i = i - 1;
-                        break 
+                        break
                     end
-
+                    
                     count = count + child.cw
                 end
                 
                 table.insert(currentColumn, child)
-
+                
                 if (child.height) then
                     rowHeight = math.max(rowHeight, child.height)
                 end
             until i > #children
             
             j = j + i;
-
+            
             -- remaining width;
-            -- usedWidth
             -- current x
-            
+            -- usedWidth
             local rWidth = self.width - (columnGap * (#currentColumn + 1));
-            
-            local usedWidth = 0;
             local cX = self.x + columnGap + 1;
+            local usedWidth = 0;
             
             -- First, get all of the fixed width items and subtract their sizes from the total width
             table.forEach(currentColumn, function(child)
@@ -373,7 +370,7 @@ function Frame:orderChildren()
             -- Use the remaining width to calculate the sizes for every child in the column
             table.forEach(currentColumn, function(child, i)
                 if (child.cw) then
-                    child.width = math.floor(rWidth * (child.cw / columnUnits))  
+                    child.width = math.floor(rWidth * (child.cw / columnUnits))
                 end
                 
                 if (not child.height or child.height == 0) then
@@ -386,23 +383,23 @@ function Frame:orderChildren()
                 cX = cX + child.width + columnGap
                 usedWidth = usedWidth + child.width;
             end)
-
+            
             cY = cY + rowHeight
-
+            
             -- Quick filter to make sure that rows always fill the entire space
             if (count == columnUnits and usedWidth < rWidth) then
                 local difference = rWidth - usedWidth;
-
+                
                 -- Get the first child that is sized using cw;
-                local child, indx = table.find(currentColumn, function (v)
+                local child, indx = table.find(currentColumn, function(v)
                     return v.cw
                 end)
-
+                
                 -- Tack on the extra unused space
                 child.width = child.width + difference
-
+                
                 -- Move over all following items accordingly
-                for i=indx + 1, #currentColumn do
+                for i = indx + 1, #currentColumn do
                     currentColumn[i].x = currentColumn[i].x + difference
                 end
             end
@@ -460,7 +457,7 @@ local faces = {
 function Device:connect(face)
     if (peripheral.isPresent(face)) then
         self.peripheral = peripheral.wrap(face)
-
+        
         local width, height = self.peripheral.getSize();
         self.width = width;
         self.height = height;
@@ -473,12 +470,12 @@ function Device:find(periphType)
     for _, face in ipairs(faces) do
         if peripheral.isPresent(face) and peripheral.getType(face) == periphType then
             self.peripheral = peripheral.wrap(face)
-
+            
             local width, height = self.peripheral.getSize();
             
             self.width = width;
             self.height = height;
-
+            
             return
         end
     end
@@ -490,10 +487,10 @@ function Device:rerender()
     if (self.peripheral ~= term) then
         term.redirect(self.peripheral)
     end
-
+    
     self:processChildUnits();
     self:renderChildren();
-
+    
     term.native()
 end
 
@@ -567,7 +564,7 @@ four.column = 2;
 four.cw = 1;
 
 device.peripheral.setBackgroundColor(colors.black)
-device.peripheral.clear()   
+device.peripheral.clear()
 device:rerender()
 
 local i = 0;
@@ -576,13 +573,13 @@ local percent = 100;
 function listenForScroll()
     while true do
         local event, scrollDirection = os.pullEvent("mouse_scroll")
-    
+        
         if (scrollDirection == -1) then
             percent = percent + 1;
         elseif (scrollDirection == 1) then
             percent = percent - 1;
         end
-    
+        
         testFrame.width = percent .. "%";
     end
 end
@@ -590,9 +587,9 @@ end
 function rerender()
     while true do
         os.sleep(0.05);
-
+        
         device.peripheral.setBackgroundColor(colors.black)
-        device.peripheral.clear()       
+        device.peripheral.clear()
         device:rerender()
         print(percent)
     end
