@@ -1,9 +1,18 @@
 -- MCUI vb0.1.1
 -- MINOR FUNCTIONS
-function table.findIndx(f, l)-- find element v of l satisfying f(v)
+function table.findIndx(f, l) -- find the first elemnt that satisfies f(v) and return its index
     for i, v in ipairs(l) do
         if f(v) then
             return i
+        end
+    end
+    return nil
+end
+
+function table.find(l, f) -- find the first element that satisfies f(v) and return it, and then its index
+    for i, v in ipairs(l) do
+        if f(v) then
+            return v, i;
         end
     end
     return nil
@@ -328,7 +337,10 @@ function Frame:orderChildren()
                 if (child == nil) then break end
 
                 if (child.cw) then
-                    if (count + child.cw > columnUnits) then break end
+                    if (count + child.cw > columnUnits) then 
+                        i = i - 1;
+                        break 
+                    end
 
                     count = count + child.cw
                 end
@@ -338,13 +350,17 @@ function Frame:orderChildren()
                 if (child.height) then
                     rowHeight = math.max(rowHeight, child.height)
                 end
-            until i > #children or count == columnUnits
+            until i > #children
             
             j = j + i;
 
             -- remaining width;
+            -- usedWidth
             -- current x
+            
             local rWidth = self.width - (columnGap * (#currentColumn + 1));
+            
+            local usedWidth = 0;
             local cX = self.x + columnGap + 1;
             
             -- First, get all of the fixed width items and subtract their sizes from the total width
@@ -353,28 +369,43 @@ function Frame:orderChildren()
                     rWidth = rWidth - child.width;
                 end
             end)
-    
+            
             -- Use the remaining width to calculate the sizes for every child in the column
-            -- Then give the children those values
             table.forEach(currentColumn, function(child, i)
                 if (child.cw) then
                     child.width = math.floor(rWidth * (child.cw / columnUnits))  
                 end
                 
-                child.y = cY
-                child.units.y = newUnit(cY, "px")
-                
-                if (child.height < 1) then
+                if (not child.height or child.height == 0) then
                     child.height = rowHeight
-                    child.units.height = newUnit(child.height, "px")
                 end
                 
                 child.x = cX - 1
+                child.y = cY
                 
                 cX = cX + child.width + columnGap
+                usedWidth = usedWidth + child.width;
             end)
 
             cY = cY + rowHeight
+
+            -- Quick filter to make sure that rows always fill the entire space
+            if (count == columnUnits and usedWidth < rWidth) then
+                local difference = rWidth - usedWidth;
+
+                -- Get the first child that is sized using cw;
+                local child, indx = table.find(currentColumn, function (v)
+                    return v.cw
+                end)
+
+                -- Tack on the extra unused space
+                child.width = child.width + difference
+
+                -- Move over all following items accordingly
+                for i=indx + 1, #currentColumn do
+                    currentColumn[i].x = currentColumn[i].x + difference
+                end
+            end
         until j > #children
     end
 end
@@ -517,7 +548,7 @@ eight.column = 5;
 local seven = Instance.new("frame", "seven", testFrame);
 seven.cw = 4;
 seven.backgroundColor = colors.brown
-seven.column = 6;
+seven.column = 4;
 seven.height = "30%"
 
 testFrame.columns = 4
@@ -540,12 +571,31 @@ device.peripheral.clear()
 device:rerender()
 
 local i = 0;
-while true do
-    os.sleep(0.05)
-    i = i + 0.05;
-    testFrame.width = (math.sin(i) * 100) + 1 .. "%";
+local percent = 100;
+
+function listenForScroll()
+    while true do
+        local event, scrollDirection = os.pullEvent("mouse_scroll")
     
-    device.peripheral.setBackgroundColor(colors.black)
-    device.peripheral.clear()       
-    device:rerender()
+        if (scrollDirection == -1) then
+            percent = percent + 1;
+        elseif (scrollDirection == 1) then
+            percent = percent - 1;
+        end
+    
+        testFrame.width = percent .. "%";
+    end
 end
+
+function rerender()
+    while true do
+        os.sleep(0.05);
+
+        device.peripheral.setBackgroundColor(colors.black)
+        device.peripheral.clear()       
+        device:rerender()
+        print(percent)
+    end
+end
+
+parallel.waitForAll(listenForScroll, rerender)
