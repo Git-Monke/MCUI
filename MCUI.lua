@@ -48,27 +48,6 @@ function printDictKeys(dict)
     end
 end
 
-function processUnitString(str)
-    local number = str:match("%d+")
-    local unit = str:match("%%")
-    
-    if number then
-        number = tonumber(number)
-    end
-    if not unit then
-        unit = "px"
-    end
-    
-    return number, unit
-end
-
-function newUnit(value, unit)
-    return {
-        ["value"] = value;
-        ["unit"] = unit;
-    }
-end
-
 function round(value)
     return math.floor(value + 0.5)
 end
@@ -138,13 +117,6 @@ function Instance.new(instanceType, name, parent)
     
     newInstance.name = name
     
-    newInstance.units = {
-        ["x"] = newUnit(0, "px"),
-        ["y"] = newUnit(0, "px"),
-        ["width"] = newUnit(0, "px"),
-        ["height"] = newUnit(0, "px")
-    }
-    
     if (parent) then
         newInstance.parent = parent
         table.insert(parent.children, newInstance)
@@ -176,44 +148,6 @@ function Instance:contains(x, y)
     end
     
     return true
-end
-
-function Instance:processUnits()
-    local unitRelatives = {
-        ["x"] = "width",
-        ["y"] = "height",
-        ["width"] = "width",
-        ["height"] = "height"
-    }
-    
-    -- Find any new units that have been changed and update the instances unit data, then recalculate all the values based on the data
-    table.forKey(unitRelatives, function(relative, unit)
-        if (type(self[unit]) == "string") then
-            local value, new = processUnitString(self[unit]);
-            
-            self.units[unit] = newUnit(value, new)
-        end
-        
-        local unitData = self.units[unit];
-        local value = unitData.value;
-        local currUnit = unitData.unit;
-        
-        if (currUnit == "%") then
-            self[unit] = round(self.parent[relative] * (value / 100));
-        else
-            self[unit] = value;
-        end
-        
-        if (unit == "x" or unit == "y") then
-            self[unit] = self[unit] + self.parent[unit]
-        end
-    end)
-end
-
-function Instance:processChildUnits()
-    table.forEach(self.children, function(child)
-        child:processUnits();
-    end)
 end
 
 function Instance:findDevice()
@@ -254,7 +188,6 @@ Frame.__index = Frame
 function Frame:render()
     local parent = self.parent
     
-    self:processChildUnits();
     self:orderChildren();
     
     if (self.transparent) then
@@ -262,21 +195,21 @@ function Frame:render()
         return
     end
     
-    local maxX = parent.x + parent.width
-    local maxY = parent.y + parent.height
+    local maxX = parent.x + parent.width - 1
+    local maxY = parent.y + parent.height - 1
     
-    local x = self.x + 1
-    local dx = x + self.width - 1
+    local x = self.x;
+    local dx = x + self.width - 1;
     
-    local y = self.y + 1
-    local dy = y + self.height - 1
+    local y = self.y;
+    local dy = y + self.height - 1;
     
     if (parent.overflow == "hidden") then
-        x = math.clamp(parent.x + 1, maxX, x);
-        dx = math.clamp(parent.x, maxX, dx);
+        x = math.max(parent.x, x);
+        dx = math.min(maxX, dx);
 
-        y = math.clamp(parent.y, maxY, y);
-        dy = math.clamp(parent.y, maxY, dy);
+        y = math.max(parent.y, y);
+        dy = math.min(maxY, dy);
     end
     
     local periph = self:findDevice();
@@ -310,11 +243,11 @@ function Frame:orderChildren()
         local currentColumn = {}
         
         table.sort(children, function(a, b)
-            if (not a.column and b.column) then return false end
-            if (not b.column and a.column) then return true end
-            if (not a.column and not b.column) then return false end
+            if (not a.order and b.order) then return false end
+            if (not b.order and a.order) then return true end
+            if (not a.order and not b.order) then return false end
             
-            return a.column < b.column
+            return a.order < b.order
         end)
         
         local j = 1
@@ -335,6 +268,10 @@ function Frame:orderChildren()
                 -- Means the end of the list has been reached
                 if (child == nil) then break end
                 
+                if (not child.order) then
+                    child.order = i;
+                end
+
                 if (child.cw) then
                     if (count + child.cw > columnUnits) then
                         i = i - 1;
@@ -360,8 +297,8 @@ function Frame:orderChildren()
             -- remaining width;
             -- current x
             -- usedWidth
-            local rWidth = self.width - (columnGap * (#currentColumn + 1));
-            local cX = self.x + columnGap + 1;
+            local rWidth = self.width - (columnGap * (#currentColumn - 1));
+            local cX = self.x + 1;
             local usedWidth = 0;
             
             -- First, get all of the fixed width items and subtract their sizes from the total width
@@ -492,7 +429,6 @@ function Device:rerender()
         term.redirect(self.peripheral)
     end
     
-    self:processChildUnits();
     self:renderChildren();
     
     term.native()
@@ -507,66 +443,37 @@ instanceTypes = {
 local device = Instance.new("device", "testDevice");
 
 local testFrame = Instance.new("frame", "testFrame", device);
-testFrame.height = "100%";
 testFrame.transparent = false;
-testFrame.backgroundColor = colors.gray;
+testFrame.backgroundColor = colors.white;
 testFrame.display = "grid";
-testFrame.width = "100%";
-
-local two = Instance.new("frame", "two", testFrame);
-two.width = "5px";
-two.backgroundColor = colors.white
-
-local three = Instance.new("frame", "three", testFrame);
-three.backgroundColor = colors.green
-
-local four = Instance.new("frame", "four", testFrame)
-four.backgroundColor = colors.red;
-four.transparent = false
-
-two.display = "grid";
-two.ch = 12;
-
-local five = Instance.new("frame", "five", two);
-five.width = "5px";
-five.height = "100%";
-five.backgroundColor = colors.pink;
-five.column = 2;
-five.cw = 3;
-
-local six = Instance.new("frame", "six", two);
-six.cw = 1;
-six.height = "100%";
-six.backgroundColor = colors.purple;
-six.column = 1;
-
-local eight = Instance.new("frame", "eight", testFrame);
-eight.width = "10px";
-eight.backgroundColor = colors.lime
-eight.column = 5;
-
-local seven = Instance.new("frame", "seven", testFrame);
-seven.cw = 4;
-seven.backgroundColor = colors.brown
-seven.column = 4;
-seven.ch = 8;
-
-testFrame.columns = 4
-testFrame.rows = 20;
-testFrame.width = "90%"
-testFrame.x = "0px";
 testFrame.overflow = "hidden";
+testFrame.width = 51;
+testFrame.height = 10;
+
+testFrame.columns = 12;
 testFrame.columnGap = 1;
 
-two.column = 0;
-two.cw = 2;
-two.columns = 4;
+local one = Instance.new("frame", "one", testFrame);
+one.backgroundColor = colors.red;
+one.cw = 6;
+one.ch = 12;
 
-three.column = 1;
-three.cw = 1;
+local secondGrid = Instance.new("frame", "second", testFrame);
+secondGrid.display = "grid";
+secondGrid.transparent = true;
+secondGrid.cw = 6;
+secondGrid.ch = 12;
+secondGrid.overflow = "hidden";
 
-four.column = 2;
-four.cw = 1;
+local two = Instance.new("frame", "two", secondGrid);
+two.cw = 12;
+two.ch = 6;
+two.backgroundColor = colors.green;
+
+local three = Instance.new("frame", "three", secondGrid);
+three.cw = 12;
+three.ch = 6;
+three.backgroundColor = colors.pink;
 
 device.peripheral.setBackgroundColor(colors.black)
 device.peripheral.clear()
@@ -583,8 +490,8 @@ function listenForScroll()
             local x = p2;
             local y = p3;
             
-            testFrame.width = x .. "px";
-            testFrame.height = y .. "px";
+            testFrame.width = x;
+            testFrame.height = y;
         end
     end
 end
