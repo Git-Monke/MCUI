@@ -346,6 +346,10 @@ function Frame:orderChildren()
                 
                 table.insert(currentColumn, child)
                 
+                if (child.ch) then
+                    child.height = round((child.ch / rowUnits) * height);
+                end
+
                 if (child.height) then
                     rowHeight = math.max(rowHeight, child.height)
                 end
@@ -518,11 +522,10 @@ three.backgroundColor = colors.green
 
 local four = Instance.new("frame", "four", testFrame)
 four.backgroundColor = colors.red;
-four.height = "30%";
 four.transparent = false
 
 two.display = "grid";
-two.columns = 4;
+two.ch = 12;
 
 local five = Instance.new("frame", "five", two);
 five.width = "5px";
@@ -546,9 +549,10 @@ local seven = Instance.new("frame", "seven", testFrame);
 seven.cw = 4;
 seven.backgroundColor = colors.brown
 seven.column = 4;
-seven.height = "30%"
+seven.ch = 8;
 
 testFrame.columns = 4
+testFrame.rows = 20;
 testFrame.width = "90%"
 testFrame.x = "0px";
 testFrame.overflow = "hidden";
@@ -556,6 +560,7 @@ testFrame.columnGap = 1;
 
 two.column = 0;
 two.cw = 2;
+two.columns = 4;
 
 three.column = 1;
 three.cw = 1;
@@ -568,19 +573,19 @@ device.peripheral.clear()
 device:rerender()
 
 local i = 0;
-local percent = 100;
+local width = 10;
 
 function listenForScroll()
     while true do
-        local event, scrollDirection = os.pullEvent("mouse_scroll")
+        local event, p1, p2, p3 = os.pullEvent()
         
-        if (scrollDirection == -1) then
-            percent = percent + 1;
-        elseif (scrollDirection == 1) then
-            percent = percent - 1;
+        if (event == "mouse_drag") then
+            local x = p2;
+            local y = p3;
+            
+            testFrame.width = x .. "px";
+            testFrame.height = y .. "px";
         end
-        
-        testFrame.width = percent .. "%";
     end
 end
 
@@ -591,7 +596,6 @@ function rerender()
         device.peripheral.setBackgroundColor(colors.black)
         device.peripheral.clear()
         device:rerender()
-        print(percent)
     end
 end
 
